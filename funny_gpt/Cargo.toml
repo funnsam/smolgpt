@@ -1,7 +1,7 @@
-workspace = { members = ["funny_gpt"] }
 [package]
-name = "smolgpt"
+name = "funny_gpt"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+smolgpt = { path = ".." }

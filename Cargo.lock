@@ -3,5 +3,12 @@
 version = 3
 
 [[package]]
+name = "funny_gpt"
+version = "0.1.0"
+dependencies = [
+ "smolgpt",
+]
+
+[[package]]
 name = "smolgpt"
 version = "0.1.0"

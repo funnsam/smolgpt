@@ -1,5 +1,5 @@
-use std::ops::*;
 use std::fmt;
+use std::ops::*;
 
 #[macro_export]
 macro_rules! matrix {
@@ -27,9 +27,18 @@ macro_rules! matrix_fill {
     ($m: expr, $y: expr, $x: expr,) => {};
 }
 
+#[macro_export]
+macro_rules! vector {
+    ($h: tt [$($val: expr),* $(,)?]) => {
+        matrix!(1 x $h $([$val])*)
+    };
+}
+
+pub type Vector<const H: usize> = Matrix<1, H>;
+
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Matrix<const W: usize, const H: usize> {
-    inner: [[f32; W]; H]
+    inner: [[f32; W]; H],
 }
 
 impl<const W: usize, const H: usize> Matrix<W, H> {
@@ -59,6 +68,39 @@ impl<const W: usize, const H: usize> Matrix<W, H> {
         let mut c = self.clone();
         c.softmax(t);
         c
+    }
+
+    pub fn softmax_by_column(&mut self, t: f32) {
+        for y in self.inner.iter_mut() {
+            let mut sum = 0.0;
+
+            for x in y.iter_mut() {
+                *x = (*x / t).exp();
+                sum += *x;
+            }
+
+            for x in y.iter_mut() {
+                *x /= sum;
+            }
+        }
+    }
+
+    pub fn softmaxed_by_column(&self, t: f32) -> Self {
+        let mut c = self.clone();
+        c.softmax_by_column(t);
+        c
+    }
+}
+
+impl<const H: usize> Matrix<1, H> {
+    pub fn dot(&self, b: &Matrix<1, H>) -> f32 {
+        let mut dot = 0.0;
+
+        for y in 0..H {
+            dot += self[(0, y)] * b[(0, y)];
+        }
+
+        dot
     }
 }
 
@@ -92,7 +134,6 @@ impl<const W: usize, const H: usize> fmt::Display for Matrix<W, H> {
             write!(f, "│ ")?;
 
             for (xi, x) in y.iter().enumerate() {
-                let x = x.to_string();
                 write!(f, "{x:^0$} ", align[xi])?;
             }
 
@@ -103,7 +144,9 @@ impl<const W: usize, const H: usize> fmt::Display for Matrix<W, H> {
     }
 }
 
-impl<const WAHB: usize, const HA: usize, const WB: usize> Mul<&Matrix<WB, WAHB>> for &Matrix<WAHB, HA> {
+impl<const WAHB: usize, const HA: usize, const WB: usize> Mul<&Matrix<WB, WAHB>>
+    for &Matrix<WAHB, HA>
+{
     type Output = Matrix<WB, HA>;
 
     fn mul(self, b: &Matrix<WB, WAHB>) -> Matrix<WB, HA> {
@@ -125,27 +168,89 @@ impl<const WAHB: usize, const HA: usize, const WB: usize> Mul<&Matrix<WB, WAHB>>
     }
 }
 
+impl<const W: usize, const H: usize> Add<&Self> for Matrix<W, H> {
+    type Output = Matrix<W, H>;
+
+    fn add(mut self, b: &Matrix<W, H>) -> Matrix<W, H> {
+        for (yi, y) in self.inner.iter_mut().enumerate() {
+            for (xi, x) in y.iter_mut().enumerate() {
+                *x += b[(xi, yi)];
+            }
+        }
+
+        self
+    }
+}
+
 #[cfg(test)]
-#[test]
-fn matrix_mul() {
-    let a = matrix!(3 x 2
-        [1.0, 2.0, 3.0]
-        [4.0, 5.0, 6.0]
-    );
-    let b = matrix!(2 x 3
-        [10.0, 11.0]
-        [20.0, 21.0]
-        [30.0, 31.0]
-    );
+mod tests {
+    use super::*;
 
-    let c = &a * &b;
+    #[test]
+    fn matrix_mul() {
+        let a = matrix!(
+            3 x 2
+            [1.0, 2.0, 3.0]
+            [4.0, 5.0, 6.0]
+        );
+        let b = matrix!(
+            2 x 3
+            [10.0, 11.0]
+            [20.0, 21.0]
+            [30.0, 31.0]
+        );
 
-    println!("{a}"); // cargo test -- --nocapture
-    println!("{b}");
-    println!("{c}");
+        let c = &a * &b;
 
-    assert_eq!(c[(0, 0)], 140.0);
-    assert_eq!(c[(1, 0)], 146.0);
-    assert_eq!(c[(0, 1)], 320.0);
-    assert_eq!(c[(1, 1)], 335.0);
+        println!("{a}"); // cargo test -- --nocapture
+        println!("{b}");
+        println!("{c}");
+
+        assert_eq!(c, matrix!(
+            2 x 2
+            [140.0, 146.0]
+            [320.0, 335.0]
+        ));
+    }
+
+    #[test]
+    fn matrix_add() {
+        let a = matrix!(
+            3 x 2
+            [1.0, -1.0, 2.0]
+            [0.0, 3.0, 4.0]
+        );
+        let b = matrix!(
+            3 x 2
+            [2.0, -1.0, 5.0]
+            [7.0, 1.0, 4.0]
+        );
+
+        println!("{a}"); // cargo test -- --nocapture
+
+        let c = a + &b;
+
+        println!("{b}");
+        println!("{c}");
+
+        assert_eq!(c, matrix!(
+            3 x 2
+            [3.0, -2.0, 7.0]
+            [7.0, 4.0, 8.0]
+        ));
+    }
+
+    #[test]
+    fn vec_dot() {
+        let a = vector!(
+            3
+            [1.0, 2.0, 3.0]
+        );
+        let b = vector!(
+             3
+            [4.0, -5.0, 6.0]
+        );
+
+        assert_eq!(a.dot(&b), 12.0);
+    }
 }
