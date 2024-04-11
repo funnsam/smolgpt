@@ -38,7 +38,7 @@ pub type Vector<const H: usize> = Matrix<1, H>;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Matrix<const W: usize, const H: usize> {
-    inner: [[f32; W]; H],
+    pub inner: [[f32; W]; H],
 }
 
 impl<const W: usize, const H: usize> Matrix<W, H> {
@@ -48,7 +48,7 @@ impl<const W: usize, const H: usize> Matrix<W, H> {
         }
     }
 
-    pub fn softmax(&mut self, t: f32) {
+    pub fn softmax(mut self, t: f32) -> Self {
         let mut sum = 0.0;
         for y in self.inner.iter_mut() {
             for x in y.iter_mut() {
@@ -62,12 +62,12 @@ impl<const W: usize, const H: usize> Matrix<W, H> {
                 *x /= sum;
             }
         }
+
+        self
     }
 
     pub fn softmaxed(&self, t: f32) -> Self {
-        let mut c = self.clone();
-        c.softmax(t);
-        c
+        self.clone().softmax(t)
     }
 
     pub fn softmax_by_column(&mut self, t: f32) {
@@ -90,17 +90,19 @@ impl<const W: usize, const H: usize> Matrix<W, H> {
         c.softmax_by_column(t);
         c
     }
-}
 
-impl<const H: usize> Matrix<1, H> {
-    pub fn dot(&self, b: &Matrix<1, H>) -> f32 {
-        let mut dot = 0.0;
-
-        for y in 0..H {
-            dot += self[(0, y)] * b[(0, y)];
+    pub fn sigmoid(mut self) -> Self {
+        for y in self.inner.iter_mut() {
+            for x in y.iter_mut() {
+                // LIGHT:
+                //             1
+                // σ(x) = ------------
+                //         1 + e^(-x)
+                *x = 1.0 / (1.0 + (-*x).exp());
+            }
         }
 
-        dot
+        self
     }
 }
 
@@ -242,15 +244,15 @@ mod tests {
 
     #[test]
     fn vec_dot() {
-        let a = vector!(
-            3
+        let a = matrix!(
+            3 x 1
             [1.0, 2.0, 3.0]
         );
         let b = vector!(
-             3
+            3
             [4.0, -5.0, 6.0]
         );
 
-        assert_eq!(a.dot(&b), 12.0);
+        assert_eq!(&a * &b, matrix!(1 x 1 [12.0]));
     }
 }

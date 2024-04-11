@@ -1,4 +1,6 @@
-use crate::matrix::*;
+use crate::*;
+
+mod mlp;
 
 pub struct GptModel<
     const TOKENS: usize,
@@ -9,7 +11,7 @@ pub struct GptModel<
     const NUM_LAYERS: usize,
 > {
     embedding: [Vector<EMBED_DIM>; TOKENS],
-    unembedding: Matrix<TOKENS, EMBED_DIM>,
+    unembedding: Matrix<EMBED_DIM, TOKENS>,
 
     layers: [Layer<EMBED_DIM, QUERY_DIM, NUM_HEADS>; NUM_LAYERS],
 }
@@ -65,15 +67,20 @@ impl<
         TOKENS * EMBED_DIM
     }
 
-    pub fn predict_next(&self, ctx: &[usize; CONTEXT_SIZE]) -> usize {
+    pub fn predict_next(&self, ctx: &[usize; CONTEXT_SIZE], temperature: f32) -> Vector<TOKENS> {
+        // embedding
         let mut embed = Vec::with_capacity(CONTEXT_SIZE);
 
         for i in ctx.iter() {
             embed.push(self.embedding[*i].clone());
-            println!("{}", embed.last().unwrap());
         }
 
-        255
+        let mut embed = TryInto::<[_; CONTEXT_SIZE]>::try_into(embed).unwrap();
+
+        // TODO: inbetween layers
+
+        // unembedding
+        (&self.unembedding * embed.last().unwrap()).softmax(temperature)
     }
 }
 
@@ -86,24 +93,43 @@ impl<
     const NUM_LAYERS: usize,
 > GptTrainer<TOKENS, CONTEXT_SIZE, EMBED_DIM, QUERY_DIM, NUM_HEADS, NUM_LAYERS> {
     pub fn new_random() -> Self {
+        use rand::*;
+        let mut rng = rngs::StdRng::from_entropy();
+
+        fn fill_random<const W: usize, const H: usize>(mat: &mut Matrix<W, H>, rng: &mut rngs::StdRng) {
+            for y in mat.inner.iter_mut() {
+                for x in y.iter_mut() {
+                    *x = rng.gen();
+                }
+            }
+        }
+
         let mut embedding = Vec::with_capacity(TOKENS);
 
         for _ in 0..TOKENS {
-            let embed = Vector::new_zeroed();
+            let mut embed = Vector::new_zeroed();
+            fill_random(&mut embed, &mut rng);
             embedding.push(embed);
         }
 
-        let unembedding = Matrix::new_zeroed();
+        let mut unembedding = Matrix::new_zeroed();
+        fill_random(&mut unembedding, &mut rng);
+
         let mut layers = Vec::with_capacity(NUM_LAYERS);
 
         for _ in 0..NUM_LAYERS {
             let mut heads = Vec::with_capacity(NUM_HEADS);
 
             for _ in 0..NUM_HEADS {
-                let key = Matrix::new_zeroed();
-                let query = Matrix::new_zeroed();
-                let value_u = Matrix::new_zeroed();
-                let value_d = Matrix::new_zeroed();
+                let mut key = Matrix::new_zeroed();
+                fill_random(&mut key, &mut rng);
+                let mut query = Matrix::new_zeroed();
+                fill_random(&mut query, &mut rng);
+                let mut value_u = Matrix::new_zeroed();
+                fill_random(&mut value_u, &mut rng);
+                let mut value_d = Matrix::new_zeroed();
+                fill_random(&mut value_d, &mut rng);
+
                 heads.push(Head {
                     key,
                     query,
